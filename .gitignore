@@ -1,0 +1,12 @@
+__pycache__/
+.cache/
+.github/ISSUE_TEMPLATE/bug_report.md
+*png
+*jpg
+*pth 
+*npz
+*txt*
+*even*
+*jpeg
+*json*
+*tsv
