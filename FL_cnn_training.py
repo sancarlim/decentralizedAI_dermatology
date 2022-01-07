@@ -38,6 +38,13 @@ seed_everything(seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print (device)   
 
+# Join the Duet Swerver the Data Owner 2 is connected to - ISIC Data
+duet1 = sy.join_duet(loopback=True)
+
+# Join the Duet Swerver the Data Owner 2 is connected to - SAM Data
+# duet2 = sy.join_duet(loopback=True) 
+
+
 ### TRAINING ###
 def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
     # Training model
@@ -218,13 +225,7 @@ if __name__ == "__main__":
     if args.only_syn:
         train_df = synt_train_df
     else:
-        # ISIC dataset
-        df = pd.read_csv(os.path.join(args.real_data_path , 'train_concat.csv')) 
-        train_img_dir = os.path.join(args.real_data_path ,'train/train/') 
-        df['image_name'] = [os.path.join(train_img_dir, df.iloc[index]['image_name'] + '.jpg') for index in range(len(df))] 
-        train_split, valid_split = train_test_split (df, stratify=df.target, test_size = 0.20, random_state=42) 
-        train_df=pd.DataFrame(train_split)
-        validation_df=pd.DataFrame(valid_split)
+       
         train_df = pd.concat([train_df, synt_train_df]) 
     
     training_dataset = CustomDataset(df = train_df, train = True, transforms = training_transforms )
