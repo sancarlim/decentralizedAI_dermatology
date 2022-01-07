@@ -13,3 +13,4 @@ __pycache__/
 *tsv
 .ipynb_checkpoints/
 *batch*
+wandb/
