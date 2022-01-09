@@ -55,11 +55,12 @@ class CifarClient(fl.client.NumPyClient):
 
     def get_parameters(self) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
+        return [val.cpu().numpy() for _, val in self.model.state_dict().items() if 'bn' not in name]
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
-        params_dict = zip(self.model.state_dict().keys(), parameters)
+        keys = [k for k in self.model.state_dict().keys() if 'bn' not in k]
+        params_dict = zip(keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         self.model.load_state_dict(state_dict, strict=True)
 
