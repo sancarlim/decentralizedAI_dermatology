@@ -38,7 +38,7 @@ seed_everything(seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class CifarClient(fl.client.NumPyClient):
+class Client(fl.client.NumPyClient):
     """Flower client implementing melanoma classification using PyTorch."""
 
     def __init__(
@@ -55,14 +55,14 @@ class CifarClient(fl.client.NumPyClient):
 
     def get_parameters(self) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        return [val.cpu().numpy() for _, val in self.model.state_dict().items() if 'bn' not in name]
+        return [val.cpu().numpy() for name, val in self.model.state_dict().items() if 'bn' not in name]
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
         keys = [k for k in self.model.state_dict().keys() if 'bn' not in k]
         params_dict = zip(keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        self.model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=False)
 
     def fit(
         self, parameters: List[np.ndarray], config: Dict[str, str]
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 
     # Start client
-    client = CifarClient(model, train_loader, test_loader, num_examples)
+    client = Client(model, train_loader, test_loader, num_examples)
     fl.client.start_numpy_client("0.0.0.0:8080", client)
 
     
