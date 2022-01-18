@@ -2,18 +2,11 @@ from collections import OrderedDict
 import numpy as np 
 import os
 from typing import List, Tuple, Dict
-import matplotlib.pyplot as plt  
-from pathlib import Path
-from PIL import Image 
 
 import torch
 
 from torch import optim
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from efficientnet_pytorch import EfficientNet
-from torchvision.models import resnet50
+import torch.nn as nn 
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from argparse import ArgumentParser 
 import sys
@@ -30,6 +23,11 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 import wandb
 
 import flwr as fl
+import utils
+
+import warnings
+
+warnings.filterwarnings("ignore")
 
 seed = 1234
 seed_everything(seed)
@@ -75,7 +73,7 @@ class Client(fl.client.NumPyClient):
     def evaluate(
         self, parameters: List[np.ndarray], config: Dict[str, str]
     ) -> Tuple[float, int, Dict]:
-        # Set model parameters, evaluate model on local test dataset, return result
+        # Set model parameters, evaluate global model on local test dataset, return result
         self.set_parameters(parameters)
         loss, auc, accuracy, f1 = val(self.model, self.testloader)
         return float(loss), self.num_examples["testset"], {"accuracy": float(accuracy), "auc": float(auc)}
@@ -122,7 +120,7 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
             if i % args.log_interval == 0: 
                 wandb.log({'loss': loss})
                             
-        train_acc = correct / len(training_dataset)
+        train_acc = correct / num_examples['trainset']
 
         val_loss, val_auc_score, val_accuracy, val_f1 = val(model, validate_loader, criterion)
             
@@ -237,30 +235,13 @@ if __name__ == "__main__":
     parser.add_argument("--n_imgs",  type=str, default="0,15", help='n benign, n melanoma K synthetic images to add to the real data')
     args = parser.parse_args()
 
-    wandb.init(project="Sahlgrenska" , entity='sandracl72', config={"model": args.model})
+    wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
 
-    # Synthetic Dataset
-    input_images = [str(f) for f in sorted(Path(args.data_path).rglob('*')) if os.path.isfile(f)]
-    y = [0 if f.split('.jpg')[0][-1] == '0' else 1 for f in input_images]
-    
-    n_b, n_m = [int(i) for i in args.n_imgs.split(',') ] 
-    train_id_list, val_id_list = create_split(args.data_path, n_b , n_m) 
-    train_img = [input_images[int(i)] for i in train_id_list]
-    train_gt = [y[int(i)] for i in train_id_list]
-    train_img, test_img, train_gt, test_gt = train_test_split(input_images, y, stratify=y, test_size=0.2, random_state=3)
-    synt_train_df = pd.DataFrame({'image_name': train_img, 'target': train_gt})
-    synt_test_df = pd.DataFrame({'image_name': test_img, 'target': test_gt})
-    
-    training_dataset = CustomDataset(df = synt_train_df, train = True, transforms = training_transforms ) 
-    testing_dataset = CustomDataset(df = synt_test_df, train = True, transforms = testing_transforms ) 
-    
-    num_examples = {"trainset" : len(training_dataset), "testset" : len(testing_dataset)} 
+    # Load model
+    model = utils.load_model(args.model)
 
-    train_loader = DataLoader(training_dataset, batch_size=32, shuffle=True) 
-    test_loader = DataLoader(testing_dataset, batch_size=16, shuffle = False)  
-
-    arch = EfficientNet.from_pretrained('efficientnet-b2') if args.model=='efficientnet' else resnet50(pretrained=True)
-    model = Net(arch=arch).to(device)
+    # Load data
+    train_loader, test_loader, num_examples = utils.load_synthetic_data(args.data_path, args.n_imgs)
 
 
     # Start client

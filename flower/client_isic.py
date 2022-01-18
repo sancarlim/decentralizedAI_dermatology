@@ -6,9 +6,7 @@ from typing import List, Tuple, Dict
 import torch
 
 from torch import optim
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
+import torch.nn as nn 
 from efficientnet_pytorch import EfficientNet
 from torchvision.models import resnet50
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -17,19 +15,16 @@ import sys
 
 sys.path.append('/workspace/stylegan2-ada-pytorch')
 
-from melanoma_cnn_efficientnet import Net, Synth_Dataset, test, CustomDataset , confussion_matrix, seed_everything
-from melanoma_cnn_efficientnet import training_transforms, testing_transforms, create_split
-import pandas as pd
-from sklearn.model_selection import train_test_split
-import datetime
-import time 
+from melanoma_cnn_efficientnet import Net, seed_everything  
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, f1_score
-
-import wandb
-from client_synthetic import Client, train, val, test
+import wandb 
 import flwr as fl
+import utils
 
+import warnings
+
+warnings.filterwarnings("ignore")
 seed = 1234
 seed_everything(seed)
 
@@ -54,14 +49,14 @@ class CifarClient(fl.client.NumPyClient):
 
     def get_parameters(self) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        return [val.cpu().numpy() for _, val in self.model.state_dict().items() if 'bn' not in name]
+        return [val.cpu().numpy() for name, val in self.model.state_dict().items() if 'bn' not in name]
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
         keys = [k for k in self.model.state_dict().keys() if 'bn' not in k]
         params_dict = zip(keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        self.model.load_state_dict(state_dict, strict=True)
+        self.model.load_state_dict(state_dict, strict=False)
 
     def fit(
         self, parameters: List[np.ndarray], config: Dict[str, str]
@@ -76,7 +71,7 @@ class CifarClient(fl.client.NumPyClient):
     ) -> Tuple[float, int, Dict]:
         # Set model parameters, evaluate model on local test dataset, return result
         self.set_parameters(parameters)
-        loss, auc, accuracy, f1 = val(self.model, self.testloader)
+        loss, auc, accuracy, f1 = utils.val(self.model, self.testloader)
         return float(loss), self.num_examples["testset"], {"accuracy": float(accuracy), "auc": float(auc)}
 
 
@@ -121,9 +116,9 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
             if i % args.log_interval == 0: 
                 wandb.log({'loss': loss})
                             
-        train_acc = correct / len(training_dataset)
+        train_acc = correct / num_examples["trainset"]
 
-        val_loss, val_auc_score, val_accuracy, val_f1 = val(model, validate_loader, criterion)
+        val_loss, val_auc_score, val_accuracy, val_f1 = utils.val(model, validate_loader, criterion)
             
         print("Epoch: {}/{}.. ".format(e+1, epochs),
             "Training Loss: {:.3f}.. ".format(running_loss/len(train_loader)),
@@ -154,36 +149,6 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
 
     return model
                 
-def val(model, validate_loader, criterion = nn.BCEWithLogitsLoss()):          
-    model.eval()
-    preds=[]            
-    all_labels=[]
-    criterion = nn.BCEWithLogitsLoss()
-    # Turning off gradients for validation, saves memory and computations
-    with torch.no_grad():
-        
-        val_loss = 0 
-    
-        for val_images, val_labels in validate_loader:
-        
-            val_images, val_labels = val_images.to(device), val_labels.to(device)
-        
-            val_output = model(val_images)
-            val_loss += (criterion(val_output, val_labels.view(-1,1))).item() 
-            val_pred = torch.sigmoid(val_output)
-            
-            preds.append(val_pred.cpu())
-            all_labels.append(val_labels.cpu())
-        pred=np.vstack(preds).ravel()
-        pred2 = torch.tensor(pred)
-        val_gt = np.concatenate(all_labels)
-        val_gt2 = torch.tensor(val_gt)
-            
-        val_accuracy = accuracy_score(val_gt2, torch.round(pred2))
-        val_auc_score = roc_auc_score(val_gt, pred)
-        val_f1_score = f1_score(val_gt, np.round(pred))
-
-        return val_loss, val_auc_score, val_accuracy, val_f1_score
 
 def test(model, test_loader):
     test_preds=[]
@@ -235,33 +200,16 @@ if __name__ == "__main__":
     parser.add_argument("--log_interval", type=int, default='500')  
     args = parser.parse_args()
 
-    wandb.init(project="Sahlgrenska" , entity='sandracl72', config={"model": args.model})
+    wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
 
-    # ISIC Dataset
+    # Load model
+    model = utils.load_model(args.model)
 
-    df = pd.read_csv(os.path.join(args.data_path , 'train_concat.csv')) 
-    train_img_dir = os.path.join(args.data_path ,'train/train/')
+    # Load data
+    train_loader, test_loader, num_examples = utils.load_isic_data()
     
-    df['image_name'] = [os.path.join(train_img_dir, df.iloc[index]['image_name'] + '.jpg') for index in range(len(df))]
-
-    train_split, valid_split = train_test_split (df, stratify=df.target, test_size = 0.20, random_state=42) 
-    train_df=pd.DataFrame(train_split)
-    validation_df=pd.DataFrame(valid_split) 
-    
-    training_dataset = CustomDataset(df = train_df, train = True, transforms = training_transforms ) 
-    testing_dataset = CustomDataset(df = validation_df, train = True, transforms = testing_transforms ) 
-    
-    num_examples = {"trainset" : len(training_dataset), "testset" : len(testing_dataset)} 
-
-    train_loader = DataLoader(training_dataset, batch_size=32, num_workers=4, shuffle=True) 
-    test_loader = DataLoader(testing_dataset, batch_size=16, shuffle = False)  
-
-    arch = EfficientNet.from_pretrained('efficientnet-b2') if args.model=='efficientnet' else resnet50(pretrained=True)
-    model = Net(arch=arch).to(device)
-
-
     # Start client
-    client = Client(model, train_loader, test_loader, num_examples)
+    client = CifarClient(model, train_loader, test_loader, num_examples)
     fl.client.start_numpy_client("0.0.0.0:8080", client)
 
     
