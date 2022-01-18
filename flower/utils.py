@@ -155,12 +155,11 @@ def load_synthetic_data(data_path, n_imgs):
 
 
 
-
-def load_partition(trainset, testset, num_examples, idx):
-    """Load 1/3th of the training and test data to simulate a partition."""
-    assert idx in range(3) 
-    n_train = int(num_examples["trainset"] / 3)
-    n_test = int(num_examples["testset"] / 3)
+def load_partition(trainset, testset, num_examples, idx, num_partitions = 5):
+    """Load 1/5th of the training and test data to simulate a partition."""
+    assert idx in range(num_partitions) 
+    n_train = int(num_examples["trainset"] / num_partitions)
+    n_test = int(num_examples["testset"] / num_partitions)
 
     train_partition = torch.utils.data.Subset(
         trainset, range(idx * n_train, (idx + 1) * n_train)
@@ -168,7 +167,10 @@ def load_partition(trainset, testset, num_examples, idx):
     test_partition = torch.utils.data.Subset(
         testset, range(idx * n_test, (idx + 1) * n_test)
     )
-    return (train_partition, test_partition)
+
+    num_examples = {"trainset" : len(train_partition), "testset" : len(test_partition)} 
+
+    return (train_partition, test_partition, num_examples)
 
 
 class CustomDataset(Dataset):
@@ -229,4 +231,47 @@ def val(model, validate_loader, criterion = nn.BCEWithLogitsLoss()):
         val_f1_score = f1_score(val_gt, np.round(pred))
 
         return val_loss, val_auc_score, val_accuracy, val_f1_score
+
+
+
+def test(model, test_loader):
+    test_preds=[]
+    all_labels=[]
+    with torch.no_grad():
+        
+        for _, (test_images, test_labels) in enumerate(test_loader):
+            
+            test_images, test_labels = test_images.to(DEVICE), test_labels.to(DEVICE)
+            
+            test_output = model(test_images)
+            test_pred = torch.sigmoid(test_output)
+                
+            test_preds.append(test_pred.cpu())
+            all_labels.append(test_labels.cpu())
+            
+        test_pred=np.vstack(test_preds).ravel()
+        test_pred2 = torch.tensor(test_pred)
+        test_gt = np.concatenate(all_labels)
+        test_gt2 = torch.tensor(test_gt)
+        try:
+            test_accuracy = accuracy_score(test_gt2.cpu(), torch.round(test_pred2))
+            test_auc_score = roc_auc_score(test_gt, test_pred)
+            test_f1_score = f1_score(test_gt, np.round(test_pred))
+        except:
+            test_auc_score = 0
+            test_f1_score = 0
+            pass
+
+        wandb.log({"roc": wandb.plot.roc_curve(test_gt2, test_pred2)})    
+        wandb.log({"pr": wandb.plot.pr_curve(test_gt2, test_pred2)})
+        
+        cm = wandb.plot.confusion_matrix(
+            y_true=test_gt2,
+            preds=test_pred2,
+            class_names=["benign", "melanoma"])  
+        wandb.log({"conf_mat": cm})
+
+    print("Test Accuracy: {:.5f}, ROC_AUC_score: {:.5f}, F1 score: {:.4f}".format(test_accuracy, test_auc_score, test_f1_score))  
+
+    return test_pred, test_gt, test_accuracy
 

@@ -42,7 +42,7 @@ def get_eval_fn(model):
         set_parameters(model, weights) 
         loss, auc, accuracy, f1 = utils.val(model, testloader, criterion = nn.BCEWithLogitsLoss())
         
-        wandb.log({'server_eval_loss': loss, "server_eval_accuracy": float(accuracy)})
+        wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy)})
 
         return float(loss), {"accuracy": float(accuracy), "auc": float(auc)}
 

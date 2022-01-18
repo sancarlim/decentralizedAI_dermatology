@@ -28,7 +28,6 @@ seed_everything(seed)
 # Setting up GPU for processing or CPU if GPU isn't available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 class Client(fl.client.NumPyClient):
     """Flower client implementing melanoma classification using PyTorch."""
 
@@ -47,6 +46,9 @@ class Client(fl.client.NumPyClient):
     def get_parameters(self) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
         return [val.cpu().numpy() for name, val in self.model.state_dict().items() if 'bn' not in name]
+
+    def get_properties(self, config):
+        return {}
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
@@ -115,7 +117,7 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
                             
         train_acc = correct / num_examples['trainset']
 
-        val_loss, val_auc_score, val_accuracy, val_f1 = val(model, validate_loader, criterion)
+        val_loss, val_auc_score, val_accuracy, val_f1 = utils.val(model, validate_loader, criterion)
             
         print("Epoch: {}/{}.. ".format(e+1, epochs),
             "Training Loss: {:.3f}.. ".format(running_loss/len(train_loader)),
@@ -125,17 +127,17 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
             "Validation AUC Score: {:.3f}".format(val_auc_score),
             "Validation F1 Score: {:.3f}".format(val_f1))
             
-        wandb.log({'Training acc': train_acc, 'training_loss': running_loss/len(train_loader),
-                    'Validation AUC Score': val_auc_score, 'Validation Acc': val_accuracy, 'Validation Loss': val_loss})
+        wandb.log({'Client/Training acc': train_acc, 'Client/training_loss': running_loss/len(train_loader),
+                    'Client/Validation AUC Score': val_auc_score, 'Client/Validation Acc': val_accuracy, 'Client/Validation Loss': val_loss})
 
         scheduler.step(val_auc_score)
                 
         if val_auc_score > best_val:
             best_val = val_auc_score
             patience = es_patience  # Resetting patience since we have new best validation accuracy
-            model_path = os.path.join(f'./melanoma_fl_model_{best_val:.4f}.pth')
-            torch.save(model.state_dict(), model_path)  # Saving current best model
-            print(f'Saving model in {model_path}')
+            # model_path = os.path.join(f'./melanoma_fl_model_{best_val:.4f}.pth')
+            # torch.save(model.state_dict(), model_path)  # Saving current best model
+            # print(f'Saving model in {model_path}')
         else:
             patience -= 1
             if patience == 0:
@@ -145,78 +147,7 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
     del train_loader, validate_loader, images 
 
     return model
-                
-def val(model, validate_loader, criterion = nn.BCEWithLogitsLoss()):          
-    model.eval()
-    preds=[]            
-    all_labels=[]
-    criterion = nn.BCEWithLogitsLoss()
-    # Turning off gradients for validation, saves memory and computations
-    with torch.no_grad():
-        
-        val_loss = 0 
-    
-        for val_images, val_labels in validate_loader:
-        
-            val_images, val_labels = val_images.to(device), val_labels.to(device)
-        
-            val_output = model(val_images)
-            val_loss += (criterion(val_output, val_labels.view(-1,1))).item() 
-            val_pred = torch.sigmoid(val_output)
-            
-            preds.append(val_pred.cpu())
-            all_labels.append(val_labels.cpu())
-        pred=np.vstack(preds).ravel()
-        pred2 = torch.tensor(pred)
-        val_gt = np.concatenate(all_labels)
-        val_gt2 = torch.tensor(val_gt)
-            
-        val_accuracy = accuracy_score(val_gt2, torch.round(pred2))
-        val_auc_score = roc_auc_score(val_gt, pred)
-        val_f1_score = f1_score(val_gt, np.round(pred))
 
-        return val_loss, val_auc_score, val_accuracy, val_f1_score
-
-def test(model, test_loader):
-    test_preds=[]
-    all_labels=[]
-    with torch.no_grad():
-        
-        for _, (test_images, test_labels) in enumerate(test_loader):
-            
-            test_images, test_labels = test_images.to(device), test_labels.to(device)
-            
-            test_output = model(test_images)
-            test_pred = torch.sigmoid(test_output)
-                
-            test_preds.append(test_pred.cpu())
-            all_labels.append(test_labels.cpu())
-            
-        test_pred=np.vstack(test_preds).ravel()
-        test_pred2 = torch.tensor(test_pred)
-        test_gt = np.concatenate(all_labels)
-        test_gt2 = torch.tensor(test_gt)
-        try:
-            test_accuracy = accuracy_score(test_gt2.cpu(), torch.round(test_pred2))
-            test_auc_score = roc_auc_score(test_gt, test_pred)
-            test_f1_score = f1_score(test_gt, np.round(test_pred))
-        except:
-            test_auc_score = 0
-            test_f1_score = 0
-            pass
-
-        wandb.log({"roc": wandb.plot.roc_curve(test_gt2, test_pred2)})    
-        wandb.log({"pr": wandb.plot.pr_curve(test_gt2, test_pred2)})
-        
-        cm = wandb.plot.confusion_matrix(
-            y_true=test_gt2,
-            preds=test_pred2,
-            class_names=["benign", "melanoma"])  
-        wandb.log({"conf_mat": cm})
-
-    print("Test Accuracy: {:.5f}, ROC_AUC_score: {:.5f}, F1 score: {:.4f}".format(test_accuracy, test_auc_score, test_f1_score))  
-
-    return test_pred, test_gt, test_accuracy
 
 
 if __name__ == "__main__":
@@ -235,7 +166,7 @@ if __name__ == "__main__":
 
     # Load data
     trainset, testset, num_examples = utils.load_synthetic_data(args.data_path, args.n_imgs)
-    # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=args.partition)
+    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=args.partition)
     
     train_loader = DataLoader(trainset, batch_size=32, num_workers=4, shuffle=True) 
     test_loader = DataLoader(testset, batch_size=16, shuffle = False)  
@@ -244,3 +175,5 @@ if __name__ == "__main__":
     # Start client
     client = Client(model, train_loader, test_loader, num_examples)
     fl.client.start_numpy_client("0.0.0.0:8080", client)
+
+    
