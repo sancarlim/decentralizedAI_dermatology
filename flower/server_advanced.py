@@ -6,9 +6,10 @@ sys.path.append('/workspace/stylegan2-ada-pytorch')
 import torch
 import torch.nn as nn 
 from collections import OrderedDict
+from torch.utils.data import DataLoader
 import utils
 import warnings
-
+import wandb
 from argparse import ArgumentParser 
 
 warnings.filterwarnings("ignore")
@@ -20,7 +21,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def set_parameters(model, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
-        keys = [k for k in model.state_dict().keys() if 'bn' not in k]
+        keys = [k for k in model.state_dict().keys()] # if 'bn' not in k]
         params_dict = zip(keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         model.load_state_dict(state_dict, strict=False)
@@ -29,7 +30,9 @@ def get_eval_fn(model):
     """Return an evaluation function for server-side evaluation."""
 
     # Load data and model here to avoid the overhead of doing it in `evaluate` itself
-    _, testloader, _ = utils.load_isic_data()
+    trainset, testset, num_examples = utils.load_isic_data()
+    # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=3)  # Use validation set partition 3 for evaluation of the whole model
+    testloader = DataLoader(testset, batch_size=16, shuffle = False) 
 
     # The `evaluate` function will be called after every round
     def evaluate(
@@ -38,6 +41,9 @@ def get_eval_fn(model):
         # Update model with the latest parameters
         set_parameters(model, weights) 
         loss, auc, accuracy, f1 = utils.val(model, testloader, criterion = nn.BCEWithLogitsLoss())
+        
+        wandb.log({'server_eval_loss': loss, "server_eval_accuracy": float(accuracy)})
+
         return float(loss), {"accuracy": float(accuracy), "auc": float(auc)}
 
     return evaluate
@@ -76,9 +82,10 @@ if __name__ == "__main__":
         # 1. server-side parameter initialization
         # 2. server-side parameter evaluation
     model = utils.load_model(args.model)
-    model_weights = [val.cpu().numpy() for name, val in model.state_dict().items()  if 'bn' not in name]
+    model_weights = [val.cpu().numpy() for name, val in model.state_dict().items()] #  if 'bn' not in name]
 
-    
+    wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
+
     # Create strategy
     strategy = fl.server.strategy.FedAvg(
         fraction_fit=1,

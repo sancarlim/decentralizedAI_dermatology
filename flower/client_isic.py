@@ -4,23 +4,21 @@ import os
 from typing import List, Tuple, Dict
 
 import torch
-
+from torch.utils.data import DataLoader
 from torch import optim
 import torch.nn as nn 
 from efficientnet_pytorch import EfficientNet
 from torchvision.models import resnet50
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from argparse import ArgumentParser 
-import sys
 
-sys.path.append('/workspace/stylegan2-ada-pytorch')
+import flwr as fl 
+import utils
+from utils import Net, seed_everything  
 
-from melanoma_cnn_efficientnet import Net, seed_everything  
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 import wandb 
-import flwr as fl
-import utils
 
 import warnings
 
@@ -32,7 +30,7 @@ seed_everything(seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class CifarClient(fl.client.NumPyClient):
+class Client(fl.client.NumPyClient):
     """Flower client implementing melanoma classification using PyTorch."""
 
     def __init__(
@@ -49,11 +47,12 @@ class CifarClient(fl.client.NumPyClient):
 
     def get_parameters(self) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        return [val.cpu().numpy() for name, val in self.model.state_dict().items() if 'bn' not in name]
+        return [val.cpu().numpy() for name, val in self.model.state_dict().items()]# if 'bn' not in name]
+
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         # Set model parameters from a list of NumPy ndarrays
-        keys = [k for k in self.model.state_dict().keys() if 'bn' not in k]
+        keys = [k for k in self.model.state_dict().keys()]# if 'bn' not in k]
         params_dict = zip(keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         self.model.load_state_dict(state_dict, strict=False)
@@ -114,7 +113,7 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
             correct += (train_preds.cpu() == labels.cpu().unsqueeze(1)).sum().item()
             
             if i % args.log_interval == 0: 
-                wandb.log({'loss': loss})
+                wandb.log({'training_loss': loss})
                             
         train_acc = correct / num_examples["trainset"]
 
@@ -137,7 +136,7 @@ def train(model, train_loader, validate_loader,  epochs = 10, es_patience = 3):
             best_val = val_auc_score
             patience = es_patience  # Resetting patience since we have new best validation accuracy
             model_path = os.path.join(f'./melanoma_fl_model_{best_val:.4f}.pth')
-            torch.save(model.state_dict(), model_path)  # Saving current best model
+            # torch.save(model.state_dict(), model_path)  # Saving current best model
             print(f'Saving model in {model_path}')
         else:
             patience -= 1
@@ -194,10 +193,9 @@ def test(model, test_loader):
 
 if __name__ == "__main__":
     parser = ArgumentParser() 
-    parser.add_argument("--data_path", type=str, default='/workspace/melanoma_isic_dataset')
-    parser.add_argument("--model", type=str, default='efficientnet')
-    parser.add_argument("--epochs", type=int, default='30')  
-    parser.add_argument("--log_interval", type=int, default='500')  
+    parser.add_argument("--model", type=str, default='efficientnet') 
+    parser.add_argument("--log_interval", type=int, default='100')  
+    parser.add_argument("--partition", type=int, default='0')  
     args = parser.parse_args()
 
     wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
@@ -206,10 +204,13 @@ if __name__ == "__main__":
     model = utils.load_model(args.model)
 
     # Load data
-    train_loader, test_loader, num_examples = utils.load_isic_data()
+    trainset, testset, num_examples = utils.load_isic_data()
+    trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=args.partition)
+    train_loader = DataLoader(trainset, batch_size=32, num_workers=4, shuffle=True) 
+    test_loader = DataLoader(testset, batch_size=16, shuffle = False)  
     
     # Start client
-    client = CifarClient(model, train_loader, test_loader, num_examples)
+    client = Client(model, train_loader, test_loader, num_examples)
     fl.client.start_numpy_client("0.0.0.0:8080", client)
 
     

@@ -1,33 +1,106 @@
 from collections import OrderedDict
 import numpy as np 
-import os
-from typing import List, Tuple, Dict
+import os 
 
+import cv2
+from PIL import Image
 import torch
 
-from pathlib import Path
-from torch import optim
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from pathlib import Path 
+import torch.nn as nn 
 from efficientnet_pytorch import EfficientNet
 from torchvision.models import resnet50 
-import sys
-
-sys.path.append('/workspace/stylegan2-ada-pytorch')
-
-from melanoma_cnn_efficientnet import Net, Synth_Dataset, test, CustomDataset , confussion_matrix, seed_everything
-from melanoma_cnn_efficientnet import training_transforms, testing_transforms, create_split
+from torchvision import transforms
+from torch.utils.data import Dataset
 import pandas as pd
-from sklearn.model_selection import train_test_split
-import datetime
-import time 
+from sklearn.model_selection import train_test_split 
 
 from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, f1_score
 
 import wandb
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+training_transforms = transforms.Compose([#Microscope(),
+                                        #AdvancedHairAugmentation(),
+                                        transforms.RandomRotation(30),
+                                        #transforms.RandomResizedCrop(256, scale=(0.8, 1.0)),
+                                        transforms.RandomHorizontalFlip(),
+                                        transforms.RandomVerticalFlip(),
+                                        #transforms.ColorJitter(brightness=32. / 255.,saturation=0.5,hue=0.01),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize([0.485, 0.456, 0.406], 
+                                                            [0.229, 0.224, 0.225])]) 
+
+testing_transforms = transforms.Compose([transforms.Resize(256),
+                                        transforms.CenterCrop(256),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize([0.485, 0.456, 0.406], 
+                                                            [0.229, 0.224, 0.225])])
+
+# Creating seeds to make results reproducible
+def seed_everything(seed_value):
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    os.environ['PYTHONHASHSEED'] = str(seed_value)
+    
+    if torch.cuda.is_available(): 
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = True
+
+seed = 1234
+seed_everything(seed)
+
+
+def create_split(source_dir, n_b, n_m):     
+    # Split synthetic dataset  
+    input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if os.path.isfile(f)]
+    
+    ind_0, ind_1 = [], []
+    for i, f in enumerate(input_images):
+        if f.split('.')[0][-1] == '0':
+            ind_0.append(i)
+        else:
+            ind_1.append(i)  
+    
+    train_id_list, val_id_list  = ind_0[:round(len(ind_0)*0.8)],  ind_0[round(len(ind_0)*0.8):]       #ind_0[round(len(ind_0)*0.6):round(len(ind_0)*0.8)] ,
+    train_id_1, val_id_1 = ind_1[:round(len(ind_1)*0.8)],  ind_1[round(len(ind_1)*0.8):] #ind_1[round(len(ind_1)*0.6):round(len(ind_1)*0.8)] ,
+    
+    train_id_list = np.append(train_id_list, train_id_1)
+    val_id_list =   np.append(val_id_list, val_id_1)    
+    
+    return train_id_list, val_id_list  #test_id_list
+
+
+class Net(nn.Module):
+    def __init__(self, arch, return_feats=False):
+        super(Net, self).__init__()
+        self.arch = arch
+        self.return_feats = return_feats
+        if 'fgdf' in str(arch.__class__):
+            self.arch.fc = nn.Linear(in_features=1280, out_features=500, bias=True)
+        if 'EfficientNet' in str(arch.__class__):   
+            self.arch._fc = nn.Linear(in_features=1408, out_features=500, bias=True)
+            #self.dropout1 = nn.Dropout(0.2)
+        if 'resnet' in str(arch.__class__):   
+            self.arch.fc = nn.Linear(in_features=2048, out_features=500, bias=True)
+            
+        self.output = nn.Linear(500, 1)
+        
+    def forward(self, images):
+        """
+        No sigmoid in forward because we are going to use BCEWithLogitsLoss
+        Which applies sigmoid for us when calculating a loss
+        """
+        x = images
+        features = self.arch(x)
+        output = self.output(features)
+        if self.return_feats:
+            return features
+        return output
+
 
 
 def load_model(model = 'efficientnet'):
@@ -54,10 +127,8 @@ def load_isic_data():
 
     num_examples = {"trainset" : len(training_dataset), "testset" : len(testing_dataset)} 
     
-    train_loader = DataLoader(training_dataset, batch_size=32, num_workers=4, shuffle=True) 
-    test_loader = DataLoader(testing_dataset, batch_size=16, shuffle = False)  
+    return training_dataset, testing_dataset, num_examples
 
-    return train_loader, test_loader, num_examples
 
 
 def load_synthetic_data(data_path, n_imgs):
@@ -80,10 +151,52 @@ def load_synthetic_data(data_path, n_imgs):
     
     num_examples = {"trainset" : len(training_dataset), "testset" : len(testing_dataset)} 
 
-    train_loader = DataLoader(training_dataset, batch_size=32, shuffle=True) 
-    test_loader = DataLoader(testing_dataset, batch_size=16, shuffle = False)  
+    return training_dataset, testing_dataset, num_examples
 
-    return train_loader, test_loader, num_examples
+
+
+
+def load_partition(trainset, testset, num_examples, idx):
+    """Load 1/3th of the training and test data to simulate a partition."""
+    assert idx in range(3) 
+    n_train = int(num_examples["trainset"] / 3)
+    n_test = int(num_examples["testset"] / 3)
+
+    train_partition = torch.utils.data.Subset(
+        trainset, range(idx * n_train, (idx + 1) * n_train)
+    )
+    test_partition = torch.utils.data.Subset(
+        testset, range(idx * n_test, (idx + 1) * n_test)
+    )
+    return (train_partition, test_partition)
+
+
+class CustomDataset(Dataset):
+    def __init__(self, df: pd.DataFrame, train: bool = True, transforms= None):
+        self.df = df
+        self.transforms = transforms
+        self.train = train
+    def __len__(self):
+        return len(self.df)
+    def __getitem__(self, index):
+        img_path = self.df.iloc[index]['image_name']
+        rgb_img = cv2.imread(img_path, 1)[:, :, ::-1]
+        rgb_img = np.float32(rgb_img) / 255
+        images =Image.open(img_path)
+
+        if self.transforms:
+            images = self.transforms(images)
+            
+        labels = self.df.iloc[index]['target']
+
+        if self.train:
+            #return images, labels
+            return torch.tensor(images, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+        
+        else:
+            #return (images)
+            return img_path, torch.tensor(images, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+
 
 
 def val(model, validate_loader, criterion = nn.BCEWithLogitsLoss()):          
@@ -116,3 +229,4 @@ def val(model, validate_loader, criterion = nn.BCEWithLogitsLoss()):
         val_f1_score = f1_score(val_gt, np.round(pred))
 
         return val_loss, val_auc_score, val_accuracy, val_f1_score
+

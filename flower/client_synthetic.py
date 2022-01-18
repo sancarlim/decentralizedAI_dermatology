@@ -4,27 +4,20 @@ import os
 from typing import List, Tuple, Dict
 
 import torch
-
+from torch.utils.data import DataLoader
 from torch import optim
 import torch.nn as nn 
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from argparse import ArgumentParser 
-import sys
-
-sys.path.append('/workspace/stylegan2-ada-pytorch')
-
-from melanoma_cnn_efficientnet import Net, CustomDataset,seed_everything
-from melanoma_cnn_efficientnet import training_transforms, testing_transforms, create_split
-import pandas as pd
-from sklearn.model_selection import train_test_split 
-
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
-
-import wandb
+from argparse import ArgumentParser  
 
 import flwr as fl
 import utils
 
+from utils import Net, seed_everything   
+
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
+
+import wandb
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -241,11 +234,13 @@ if __name__ == "__main__":
     model = utils.load_model(args.model)
 
     # Load data
-    train_loader, test_loader, num_examples = utils.load_synthetic_data(args.data_path, args.n_imgs)
+    trainset, testset, num_examples = utils.load_synthetic_data(args.data_path, args.n_imgs)
+    # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=args.partition)
+    
+    train_loader = DataLoader(trainset, batch_size=32, num_workers=4, shuffle=True) 
+    test_loader = DataLoader(testset, batch_size=16, shuffle = False)  
 
 
     # Start client
     client = Client(model, train_loader, test_loader, num_examples)
     fl.client.start_numpy_client("0.0.0.0:8080", client)
-
-    
