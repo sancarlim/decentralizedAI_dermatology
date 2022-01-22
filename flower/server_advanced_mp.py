@@ -1,6 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# File       : server_advanced_mp.py
+# Modified   : 22.01.2022
+# By         : Sandra Carrasco <sandra.carrasco@ai.se>
+
 import sys
 sys.path.append('/workspace/flower')
-import src.py.flwr as fl 
+import flwr as fl 
 from typing import List, Tuple, Dict, Optional
 import sys, os
 import numpy as np

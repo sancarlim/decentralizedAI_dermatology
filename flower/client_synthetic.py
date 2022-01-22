@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# File       : client_synthetic.py
+# Modified   : 22.01.2022
+# By         : Sandra Carrasco <sandra.carrasco@ai.se>
+
 from collections import OrderedDict
 import numpy as np 
 import os
@@ -10,7 +16,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from argparse import ArgumentParser  
 
-import src.py.flwr as fl 
+import flwr as fl 
 import utils
 
 from utils import Net, seed_everything   

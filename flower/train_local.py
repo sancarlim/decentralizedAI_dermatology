@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# File       : train_local.py
+# Modified   : 22.01.2022
+# By         : Sandra Carrasco <sandra.carrasco@ai.se>
+
 import torch 
 from torch.utils.data import DataLoader 
 from argparse import ArgumentParser 
