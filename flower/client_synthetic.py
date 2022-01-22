@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from argparse import ArgumentParser  
 
-import flwr as fl
+import src.py.flwr as fl 
 import utils
 
 from utils import Net, seed_everything   
@@ -27,6 +27,7 @@ seed_everything(seed)
 
 # Setting up GPU for processing or CPU if GPU isn't available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Client(fl.client.NumPyClient):
     """Flower client implementing melanoma classification using PyTorch."""

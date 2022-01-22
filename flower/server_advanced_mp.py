@@ -12,7 +12,8 @@ from collections import OrderedDict
 import utils
 import warnings
 import wandb
-from argparse import ArgumentParser  
+from argparse import ArgumentParser 
+import multiprocessing as mp
 
 warnings.filterwarnings("ignore")
 
@@ -21,35 +22,42 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 seed = 2022
 utils.seed_everything(seed)
 
-def set_parameters(model, parameters: List[np.ndarray]) -> None:
-        # Set model parameters from a list of NumPy ndarrays
-        keys = [k for k in model.state_dict().keys()] # if 'bn' not in k]
-        params_dict = zip(keys, parameters)
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        model.load_state_dict(state_dict, strict=False)
 
-def get_eval_fn(model):
+def get_eval_fn():
     """Return an evaluation function for server-side evaluation."""
-
-    # Load data and model here to avoid the overhead of doing it in `evaluate` itself
-    trainset, testset, num_examples = utils.load_isic_data()
-    # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=3)  # Use validation set partition 3 for evaluation of the whole model
-    testloader = DataLoader(testset, batch_size=16, shuffle = False) 
 
     # The `evaluate` function will be called after every round
     def evaluate(
         weights: fl.common.Weights,
     ) -> Optional[Tuple[float, Dict[str, fl.common.Scalar]]]:
-        # Update model with the latest parameters
-        set_parameters(model, weights) 
-        loss, auc, accuracy, f1 = utils.val(model, testloader, criterion = nn.BCEWithLogitsLoss())
+        # Prepare multiprocess
+        manager = mp.Manager()
+        # We receive the results through a shared dictionary
+        return_dict = manager.dict()
+        # Create the process
+        p = mp.Process(target=utils.val_mp_server, args=(args.model, weights, return_dict))
+        # Start the process
+        p.start()
+        # Wait for it to end
+        p.join()
+        # Close it
+        try:
+            p.close()
+        except ValueError as e:
+            print(f"Coudln't close the evaluating process: {e}")
+        # Get the return values
+        loss = return_dict["loss"]
+        accuracy = return_dict["accuracy"]
+        auc = return_dict["auc_score"]
+        # Del everything related to multiprocessing
+        del (manager, return_dict, p)
+
+        wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy), "Server/auc": float(auc)})
         
-        wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy)})
-
         return float(loss), {"accuracy": float(accuracy), "auc": float(auc)}
-
-    return evaluate
     
+    return evaluate 
+        
 
 def fit_config(rnd: int):
     """Return training configuration dict for each round.
@@ -79,18 +87,18 @@ if __name__ == "__main__":
     parser = ArgumentParser()  
     parser.add_argument("--model", type=str, default='efficientnet')
     parser.add_argument(
-        "-r", type=int, default=7, help="Number of rounds for the federated training"
+        "-r", type=int, default=3, help="Number of rounds for the federated training"
     )
     parser.add_argument(
         "-fc",
         type=int,
-        default=3,
+        default=2,
         help="Min fit clients, min number of clients to be sampled next round",
     )
     parser.add_argument(
         "-ac",
         type=int,
-        default=3,
+        default=2,
         help="Min available clients, min number of clients that need to connect to the server before training round can start",
     )
     args = parser.parse_args()
@@ -98,11 +106,18 @@ if __name__ == "__main__":
     fc = int(args.fc)
     ac = int(args.ac)
 
+    # Set the start method for multiprocessing in case Python version is under 3.8.1
+    mp.set_start_method("spawn") 
+
     # Load model for
         # 1. server-side parameter initialization
         # 2. server-side parameter evaluation
     model = utils.load_model(args.model)
-    model_weights = [val.cpu().numpy() for name, val in model.state_dict().items()] #  if 'bn' not in name]
+    init_weights = utils.get_weights(model)
+    # Convert the weights (np.ndarray) to parameters (bytes)
+    init_param = fl.common.weights_to_parameters(init_weights)
+    # del the net as we don't need it anymore
+    del model
 
     wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
     wandb.config.update(args)
@@ -110,14 +125,14 @@ if __name__ == "__main__":
     # Create strategy
     strategy = fl.server.strategy.FedAvg(
         fraction_fit = fc/ac,
-        fraction_eval = 0.2, # not used - no federated evaluation
+        fraction_eval = 0.2,
         min_fit_clients = fc,
-        min_eval_clients = 2, # not used 
+        min_eval_clients = 2,
         min_available_clients = ac,
-        eval_fn=get_eval_fn(model),
+        eval_fn=get_eval_fn(),
         on_fit_config_fn=fit_config,
         on_evaluate_config_fn=evaluate_config,
-        initial_parameters=fl.common.weights_to_parameters(model_weights), 
+        initial_parameters=init_param, 
     )
 
     fl.server.start_server("0.0.0.0:8080", config={"num_rounds": rounds}, strategy=strategy)

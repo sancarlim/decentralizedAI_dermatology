@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 
-import flwr as fl
+import src.py.flwr as fl 
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -83,6 +83,9 @@ class CifarClient(fl.client.NumPyClient):
         params_dict = zip(net.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         net.load_state_dict(state_dict, strict=True)
+
+    def get_properties(self, config):
+        return {}
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)

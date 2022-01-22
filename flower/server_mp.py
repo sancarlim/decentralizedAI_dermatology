@@ -2,7 +2,7 @@ import flwr as fl
 import flwr.server.strategy as strategy
 import multiprocessing as mp
 import argparse
-from client_cifar import test, testloader, net
+from client_cifar_mp import test, testloader, net
 
 class FedAvgMp(strategy.FedAvg):
     """This class implements the FedAvg strategy for Multiprocessing context."""
