@@ -1,12 +1,13 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # File       : server_advanced.py
-# Modified   : 22.01.2022
+# Modified   : 03.02.2022
 # By         : Sandra Carrasco <sandra.carrasco@ai.se>
 
 import sys
 sys.path.append('/workspace/flower')
-import flwr as fl 
+import flwr as fl
 from typing import List, Tuple, Dict, Optional
 import sys, os
 import numpy as np
@@ -38,9 +39,11 @@ def get_eval_fn(model):
     """Return an evaluation function for server-side evaluation."""
 
     # Load data and model here to avoid the overhead of doing it in `evaluate` itself
-    trainset, testset, num_examples = utils.load_isic_data()
+    # trainset, testset, num_examples = utils.load_isic_data()
+    # Exp 2
+    _, testset, _ = utils.load_isic_by_patient_server()
     # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=3)  # Use validation set partition 3 for evaluation of the whole model
-    testloader = DataLoader(testset, batch_size=16, shuffle = False) 
+    testloader = DataLoader(testset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False) 
 
     # The `evaluate` function will be called after every round
     def evaluate(
@@ -50,7 +53,8 @@ def get_eval_fn(model):
         set_parameters(model, weights) 
         loss, auc, accuracy, f1 = utils.val(model, testloader, criterion = nn.BCEWithLogitsLoss())
         
-        wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy)})
+        if not args.nowandb:
+            wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy)})
 
         return float(loss), {"accuracy": float(accuracy), "auc": float(auc)}
 
@@ -83,9 +87,12 @@ def evaluate_config(rnd: int):
 if __name__ == "__main__":
 
     parser = ArgumentParser()  
-    parser.add_argument("--model", type=str, default='efficientnet')
+    parser.add_argument("--model", type=str, default='efficientnet-b2')
+    parser.add_argument("--tags", type=str, default='FL - EXP 2: split by patient') 
+    parser.add_argument("--nowandb", action="store_true") 
+
     parser.add_argument(
-        "-r", type=int, default=7, help="Number of rounds for the federated training"
+        "-r", type=int, default=10, help="Number of rounds for the federated training"
     )
     parser.add_argument(
         "-fc",
@@ -110,11 +117,12 @@ if __name__ == "__main__":
     model = utils.load_model(args.model)
     model_weights = [val.cpu().numpy() for name, val in model.state_dict().items()] #  if 'bn' not in name]
 
-    wandb.init(project="dai-healthcare" , entity='eyeforai', config={"model": args.model})
-    wandb.config.update(args)
+    if not args.nowandb:
+        wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL', tags=[args.tags] ,config={"model": args.model})
+        wandb.config.update(args)
     
     # Create strategy
-    strategy = fl.server.strategy.FedAvg(
+    strategy = fl.server.strategy.FedAdagrad(
         fraction_fit = fc/ac,
         fraction_eval = 0.2, # not used - no federated evaluation
         min_fit_clients = fc,

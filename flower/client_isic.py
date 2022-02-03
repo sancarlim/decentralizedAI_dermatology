@@ -1,7 +1,8 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # File       : client_isic.py
-# Modified   : 22.01.2022
+# Modified   : 03.02.2022
 # By         : Sandra Carrasco <sandra.carrasco@ai.se>
 
 from collections import OrderedDict
@@ -34,7 +35,6 @@ seed_everything(seed)
 
 # Setting up GPU for processing or CPU if GPU isn't available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 
 class Client(fl.client.NumPyClient):
@@ -71,7 +71,8 @@ class Client(fl.client.NumPyClient):
     ) -> Tuple[List[np.ndarray], int, Dict]:
         # Set model parameters, train model, return updated model parameters
         self.set_parameters(parameters)
-        utils.train(self.model, self.trainloader, self.testloader, self.num_examples, args.partition, args.log_interval, epochs=args.epochs, es_patience=3)
+        utils.train(self.model, self.trainloader, self.testloader, self.num_examples, args.partition, 
+                                args.nowandb, args.log_interval, epochs=args.epochs, es_patience=3)
         return self.get_parameters(), self.num_examples["trainset"], {}
 
     def evaluate(
@@ -88,26 +89,31 @@ class Client(fl.client.NumPyClient):
 
 if __name__ == "__main__":
     parser = ArgumentParser() 
-    parser.add_argument("--model", type=str, default='efficientnet') 
+    parser.add_argument("--model", type=str, default='efficientnet-b2') 
     parser.add_argument("--log_interval", type=int, default='100')  
     parser.add_argument("--epochs", type=int, default='2')  
     parser.add_argument("--num_partitions", type=int, default='10') 
-    parser.add_argument("--partition", type=int, default='0')  
+    parser.add_argument("--partition", type=int, default='0')   
+    parser.add_argument("--nowandb", action="store_true") 
     args = parser.parse_args()
 
-    wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL' ,config={"model": args.model})
-    wandb.config.update(args) 
+    if not args.nowandb:
+        wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL', config={"model": args.model})
+        wandb.config.update(args) 
 
     # Load model
     model = utils.load_model(args.model)
 
-    # Load data
-    trainset, testset, num_examples = utils.load_isic_data()
-    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=args.partition, num_partitions=args.num_partitions)
-    trainset, testset, num_examples = utils.load_experiment_partition(trainset, testset, num_examples, idx=args.partition)
-    train_loader = DataLoader(trainset, batch_size=32, num_workers=4, shuffle=True) 
-    test_loader = DataLoader(testset, batch_size=16, shuffle = False)   
     
+    # Load data
+    trainset, testset, num_examples = utils.load_isic_by_patient_client(args.partition)
+    # trainset, testset, num_examples = utils.load_isic_data()
+    # Normal partition
+    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=args.partition, num_partitions=args.num_partitions)
+    # Exp 1
+    # trainset, testset, num_examples = utils.load_experiment_partition(trainset, testset, num_examples, idx=args.partition)
+    train_loader = DataLoader(trainset, batch_size=32, num_workers=4, worker_init_fn=utils.seed_worker, shuffle=True) 
+    test_loader = DataLoader(testset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)   
     
     # Start client 
     client = Client(model, train_loader, test_loader, num_examples)
