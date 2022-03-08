@@ -4,13 +4,12 @@
 # Modified   : 22.01.2022
 # By         : Sandra Carrasco <sandra.carrasco@ai.se>
 
-import flwr as fl
-import flwr.server.strategy as strategy
+import flwr as fl 
 import multiprocessing as mp
 import argparse
 from client_cifar_mp import test, testloader, net
 
-class FedAvgMp(strategy.FedAvg):
+class FedAvgMp(fl.server.strategy.FedAvg):
     """This class implements the FedAvg strategy for Multiprocessing context."""
 
     def configure_evaluate(self, rnd, parameters, client_manager):

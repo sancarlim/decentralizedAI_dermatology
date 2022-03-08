@@ -7,7 +7,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 
-import src.py.flwr as fl 
+import flwr as fl 
+import multiprocessing as mp
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -24,7 +25,7 @@ def load_data():
     num_examples = {"trainset" : len(trainset), "testset" : len(testset)}
     return trainloader, testloader, num_examples
 
-def train(net, trainloader, epochs):
+def train(net, trainloader, epochs, return_dict):
     """Train the network on the training set."""
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
@@ -35,8 +36,9 @@ def train(net, trainloader, epochs):
             loss = criterion(net(images), labels)
             loss.backward()
             optimizer.step()
+    
 
-def test(net, testloader):
+def test(net, testloader, return_dict):
     """Validate the network on the entire test set."""
     criterion = torch.nn.CrossEntropyLoss()
     correct, total, loss = 0, 0, 0.0
@@ -48,8 +50,10 @@ def test(net, testloader):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    accuracy = correct / total
-    return loss, accuracy
+    accuracy = correct / total 
+    # Prepare return values
+    return_dict["loss"] = loss
+    return_dict["accuracy"] = accuracy 
 
 
 class Net(nn.Module):
@@ -84,17 +88,60 @@ class CifarClient(fl.client.NumPyClient):
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         net.load_state_dict(state_dict, strict=True)
 
-    def get_properties(self, config):
-        return {}
-
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        train(net, trainloader, epochs=1)
+        # Prepare multiprocess
+        manager = mp.Manager()
+        # We receive the results through a shared dictionary
+        return_dict = manager.dict()
+        # Create the process
+        p = mp.Process(target=train, args=(net, trainloader, 1, return_dict))
+        # Start the process
+        p.start()
+        # Wait for it to end
+        p.join()
+        # Close it
+        try:
+            p.close()
+        except ValueError as e:
+            print(f"Coudln't close the training process: {e}") 
+        # Del everything related to multiprocessing
+        del (manager, return_dict, p) 
         return self.get_parameters(), num_examples["trainset"], {}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        loss, accuracy = test(net, testloader)
-        return float(loss), num_examples["testset"], {"accuracy": float(accuracy)}
+        # Prepare multiprocess
+        manager = mp.Manager()
+        # We receive the results through a shared dictionary
+        return_dict = manager.dict()
+        # Create the process
+        p = mp.Process(target=test, args=(net, testloader, return_dict))
+        # Start the process
+        p.start()
+        # Wait for it to end
+        p.join()
+        # Close it
+        try:
+            p.close()
+        except ValueError as e:
+            print(f"Coudln't close the evaluating process: {e}")
+        # Get the return values
+        loss = return_dict["loss"]
+        accuracy = return_dict["accuracy"] 
+        # Del everything related to multiprocessing
+        del (manager, return_dict, p)
+        return float(loss), num_examples["testset"], {"accuracy": float(accuracy)} 
 
-fl.client.start_numpy_client("0.0.0.0:8080", client=CifarClient())
+def main():
+    """Create model, load data, define Flower client, start Flower client."""
+
+    # Set the start method for multiprocessing in case Python version is under 3.8.1
+    mp.set_start_method("spawn")
+
+    # Start client
+    fl.client.start_numpy_client("0.0.0.0:8080", client=CifarClient())
+
+
+if __name__ == "__main__":
+    main()

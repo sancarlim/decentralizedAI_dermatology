@@ -1,21 +1,14 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # File       : server_advanced.py
-# Modified   : 03.02.2022
+# Modified   : 02.03.2022
 # By         : Sandra Carrasco <sandra.carrasco@ai.se>
 
-import sys
-sys.path.append('/workspace/flower')
-import flwr as fl
-from typing import List, Tuple, Dict, Optional
-import sys, os
-import numpy as np
-sys.path.append('/workspace/stylegan2-ada-pytorch') 
+import flwr as fl 
+from typing import List, Tuple, Dict, Optional  
 import torch
 from torch.utils.data import DataLoader
-import torch.nn as nn 
-from collections import OrderedDict
+import torch.nn as nn  
 import utils
 import warnings
 import wandb
@@ -23,38 +16,37 @@ from argparse import ArgumentParser
 
 warnings.filterwarnings("ignore")
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+EXCLUDE_LIST = [
+    #"num_batches_tracked",
+    #"running",
+    #"bn", #FedBN
+]
 seed = 2022
 utils.seed_everything(seed)
 
-def set_parameters(model, parameters: List[np.ndarray]) -> None:
-        # Set model parameters from a list of NumPy ndarrays
-        keys = [k for k in model.state_dict().keys()] # if 'bn' not in k]
-        params_dict = zip(keys, parameters)
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        model.load_state_dict(state_dict, strict=False)
-
-def get_eval_fn(model):
+        
+def get_eval_fn(model, path):
     """Return an evaluation function for server-side evaluation."""
 
     # Load data and model here to avoid the overhead of doing it in `evaluate` itself
-    # trainset, testset, num_examples = utils.load_isic_data()
-    # Exp 2
-    _, testset, _ = utils.load_isic_by_patient_server()
-    # trainset, testset = utils.load_partition(trainset, testset, num_examples, idx=3)  # Use validation set partition 3 for evaluation of the whole model
-    testloader = DataLoader(testset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False) 
 
+    # Exp 1
+    # trainset, testset, num_examples = utils.load_isic_data()
+    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=3, num_partitions=10)  # Use validation set partition 3 for evaluation of the whole model
+    
+    # Exp 2
+    #_, testset, _ = utils.load_isic_by_patient_server()
+
+    # Exp 3-6
+    testset = utils.load_isic_by_patient(-1,path)
+    testloader = DataLoader(testset, batch_size=32, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)  
     # The `evaluate` function will be called after every round
     def evaluate(
         weights: fl.common.Weights,
     ) -> Optional[Tuple[float, Dict[str, fl.common.Scalar]]]:
-        # Update model with the latest parameters
-        set_parameters(model, weights) 
-        loss, auc, accuracy, f1 = utils.val(model, testloader, criterion = nn.BCEWithLogitsLoss())
-        
-        if not args.nowandb:
-            wandb.log({'Server/loss': loss, "Server/accuracy": float(accuracy)})
+        # Update model with the latest parameters 
+        utils.set_parameters(model, weights, EXCLUDE_LIST) 
+        loss, auc, accuracy, f1 = utils.val(model, testloader, nn.BCEWithLogitsLoss(), -1, args.nowandb, device) 
 
         return float(loss), {"accuracy": float(accuracy), "auc": float(auc)}
 
@@ -79,7 +71,7 @@ def evaluate_config(rnd: int):
     batches) during rounds one to three, then increase to ten local
     evaluation steps.
     """
-    val_steps = 5 if rnd < 4 else 10
+    val_steps = 5 if rnd < 4 else 10 
     return {"val_steps": val_steps}
 
 
@@ -88,25 +80,33 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()  
     parser.add_argument("--model", type=str, default='efficientnet-b2')
-    parser.add_argument("--tags", type=str, default='FL - EXP 2: split by patient') 
-    parser.add_argument("--nowandb", action="store_true") 
+    parser.add_argument("--tags", type=str, default='Exp 5. FedBN') 
+    parser.add_argument("--nowandb", action="store_true")  
+    parser.add_argument("--path", type=str, default='/workspace/melanoma_isic_dataset') 
 
     parser.add_argument(
-        "-r", type=int, default=10, help="Number of rounds for the federated training"
+        "--r", type=int, default=10, help="Number of rounds for the federated training"
     )
     parser.add_argument(
-        "-fc",
+        "--fc",
         type=int,
         default=3,
         help="Min fit clients, min number of clients to be sampled next round",
     )
     parser.add_argument(
-        "-ac",
+        "--ac",
         type=int,
         default=3,
         help="Min available clients, min number of clients that need to connect to the server before training round can start",
     )
+    
+
     args = parser.parse_args()
+
+    # Setting up GPU for processing or CPU if GPU isn't available
+    device = torch.device( f"cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+
     rounds = int(args.r)
     fc = int(args.fc)
     ac = int(args.ac)
@@ -114,24 +114,24 @@ if __name__ == "__main__":
     # Load model for
         # 1. server-side parameter initialization
         # 2. server-side parameter evaluation
-    model = utils.load_model(args.model)
-    model_weights = [val.cpu().numpy() for name, val in model.state_dict().items()] #  if 'bn' not in name]
+    model = utils.load_model(args.model, device).eval() 
 
     if not args.nowandb:
         wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL', tags=[args.tags] ,config={"model": args.model})
         wandb.config.update(args)
+        # wandb.watch(model, log='all')
     
     # Create strategy
-    strategy = fl.server.strategy.FedAdagrad(
+    strategy = fl.server.strategy.FedAvg(
         fraction_fit = fc/ac,
-        fraction_eval = 0.2, # not used - no federated evaluation
+        fraction_eval = 1,  
         min_fit_clients = fc,
-        min_eval_clients = 2, # not used 
+        min_eval_clients = 2,  
         min_available_clients = ac,
-        eval_fn=get_eval_fn(model),
+        eval_fn=get_eval_fn(model, args.path),
         on_fit_config_fn=fit_config,
         on_evaluate_config_fn=evaluate_config,
-        initial_parameters=fl.common.weights_to_parameters(model_weights), 
+        initial_parameters= fl.common.weights_to_parameters(utils.get_parameters(model, EXCLUDE_LIST)),  
     )
 
-    fl.server.start_server("0.0.0.0:8080", config={"num_rounds": rounds}, strategy=strategy)
+    fl.server.start_server("0.0.0.0:8080", config={"num_rounds": rounds}, strategy=strategy) 

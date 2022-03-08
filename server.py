@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# File       : server.py
-# Modified   : 22.01.2022
-# By         : Sandra Carrasco <sandra.carrasco@ai.se>
-
 import sys
 sys.path.append('/workspace/flower')
 import flwr as fl 
