@@ -99,8 +99,7 @@ class Client(fl.client.NumPyClient):
 
     def evaluate(
         self, parameters: List[np.ndarray], config: Dict[str, str]
-    ) -> Tuple[float, int, Dict]:
-        # WE DON'T EVALUATE OUR CLIENTS DECENTRALIZED
+    ) -> Tuple[float, int, Dict]: 
         # Set model parameters, evaluate model on local test dataset, return result
         self.set_parameters(parameters)
         loss, auc, accuracy, f1 = utils.val(self.model, self.testloader, nn.BCEWithLogitsLoss(), f"_test",args.nowandb, device)
@@ -139,14 +138,14 @@ if __name__ == "__main__":
     
     # Load data
     # Normal partition
-    # trainset, testset, num_examples = utils.load_isic_data()
-    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=args.partition, num_partitions=args.num_partitions)
+    trainset, valset, num_examples = utils.load_isic_data()
+    trainset, valset, num_examples = utils.load_partition(trainset, valset, num_examples, idx=args.partition, num_partitions=args.num_partitions)
     # Exp 1
     # trainset, testset, num_examples = utils.load_exp1_partition(trainset, testset, num_examples, idx=args.partition)
     # Exp 2-6
-    train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition, args.path)
-    trainset = utils.CustomDataset(df = train_df, train = True, transforms = training_transforms) 
-    valset = utils.CustomDataset(df = validation_df, train = True, transforms = testing_transforms ) 
+    # train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition, args.path)
+    # trainset = utils.CustomDataset(df = train_df, train = True, transforms = training_transforms) 
+    # valset = utils.CustomDataset(df = validation_df, train = True, transforms = testing_transforms ) 
     testset =  utils.load_isic_by_patient(-1, args.path)
     
     print(f"Train dataset: {len(trainset)}, Val dataset: {len(valset)}, Test dataset: {len(testset)}")

@@ -8,8 +8,7 @@ from collections import OrderedDict
 import numpy as np 
 import os 
 from typing import List 
-import random
-import cv2
+import random 
 from PIL import Image 
 import torch
 import torchvision
@@ -28,7 +27,6 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 import wandb
 
-#pd.set_option('display.max_columns', None)
 
 training_transforms = transforms.Compose([#Microscope(),
                                         #AdvancedHairAugmentation(),
@@ -337,7 +335,6 @@ def load_isic_by_patient(partition, path='/workspace/melanoma_isic_dataset'):
     return train_df, validation_df, num_examples
 
 
-
 def load_isic_data(path='/workspace/melanoma_isic_dataset'):
     # ISIC Dataset
 
@@ -400,8 +397,7 @@ def load_partition(trainset, testset, num_examples, idx, num_partitions = 5):
     return (train_partition, test_partition, num_examples)
 
 
-def load_exp1_partition(trainset, testset, num_examples, idx):
-    """Load 1/5th of the training and test data to simulate a partition."""
+def load_exp1_partition(trainset, testset, num_examples, idx): 
     assert idx in range(3)  
 
     if idx==0:
@@ -455,8 +451,6 @@ class CustomDataset(Dataset):
             return img_path, torch.tensor(images, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
 
 
-
-
 def train(model, train_loader, validate_loader, num_examples,partition, nowandb, device="cuda",  log_interval = 100, epochs = 10, es_patience = 3):
     # Training model
     print('Starts training...')
@@ -478,10 +472,6 @@ def train(model, train_loader, validate_loader, num_examples,partition, nowandb,
         for i, (images, labels) in enumerate(train_loader):
 
             images, labels = images.to(device), labels.to(device)
-            # image_array = torchvision.utils.make_grid(images)
-            # images_wndb = wandb.Image(image_array)
-            # wandb.log({"training_batch": images_wndb})
-
             optimizer.zero_grad()
             
             output = model(images) 
@@ -548,13 +538,7 @@ def val(model, validate_loader, criterion, partition, nowandb, device="cuda"):
     
         for val_images, val_labels in validate_loader:
         
-            val_images, val_labels = val_images.to(device), val_labels.to(device)
-            # image_array = torchvision.utils.make_grid(val_images)
-            # images_wndb = wandb.Image(image_array)
-            # wandb.log({"val_batch": images_wndb})
-
-            # weights=[val.cpu().numpy() for _, val in model.state_dict().items()]
-            # sum([np.isnan(w).sum() for w in weights ]) 
+            val_images, val_labels = val_images.to(device), val_labels.to(device) 
             val_output = model(val_images)
             val_loss += (criterion(val_output, val_labels.view(-1,1))).item() 
             val_pred = torch.sigmoid(val_output)
