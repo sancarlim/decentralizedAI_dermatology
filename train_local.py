@@ -24,14 +24,13 @@ if __name__ == "__main__":
     parser = ArgumentParser() 
     parser.add_argument("--model", type=str, default='efficientnet-b2') 
     parser.add_argument("--path_data", type=str, default='/workspace/melanoma_isic_dataset') 
-    parser.add_argument("--tags", type=str, default='Exp 6 BIAS', help="Use 'whole' for training with whole dataset") 
+    parser.add_argument("--tags", type=str, default='Exp 6 BIAS') 
     parser.add_argument("--log_interval", type=int, default='100')  
     parser.add_argument("--epochs", type=int, default='20')  
     parser.add_argument("--early_stopping", type=int, default='3')  
     parser.add_argument("--num_partitions", type=int, default='10') 
     parser.add_argument("--partition", type=int, default='0')  
-    parser.add_argument("--nowandb", action="store_true") 
-    parser.add_argument("--test", action="store_true", help="evaluate with global testset") 
+    parser.add_argument("--nowandb", action="store_true")  
     parser.add_argument("--gpu", type=int, default='0')   
     args = parser.parse_args()
 
@@ -49,11 +48,7 @@ if __name__ == "__main__":
 
     # Load data
     # trainset, testset, num_examples = utils.load_exp1_partition(trainset, testset, num_examples, idx=args.partition)
-    
-    if 'whole' in args.tags:
-        train_df, validation_df, num_examples = utils.load_isic_by_patient_server()
-    else:
-        train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition) 
+    train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition) 
     
     trainset = utils.CustomDataset(df = train_df, train = True, transforms = training_transforms) 
     valset = utils.CustomDataset(df = validation_df, train = True, transforms = testing_transforms ) 

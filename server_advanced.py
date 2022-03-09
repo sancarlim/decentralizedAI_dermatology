@@ -31,15 +31,17 @@ def get_eval_fn(model, path):
     # Load data and model here to avoid the overhead of doing it in `evaluate` itself
 
     # Exp 1
-    # trainset, testset, num_examples = utils.load_isic_data()
-    # trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=3, num_partitions=10)  # Use validation set partition 3 for evaluation of the whole model
+    trainset, testset, num_examples = utils.load_isic_data()
+    trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=3, num_partitions=10)  # Use validation set partition 3 for evaluation of the whole model
     
     # Exp 2
     #_, testset, _ = utils.load_isic_by_patient_server()
 
     # Exp 3-6
-    testset = utils.load_isic_by_patient(-1,path)
+    #testset = utils.load_isic_by_patient(-1,path)
+    
     testloader = DataLoader(testset, batch_size=32, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)  
+    
     # The `evaluate` function will be called after every round
     def evaluate(
         weights: fl.common.Weights,
@@ -80,9 +82,9 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()  
     parser.add_argument("--model", type=str, default='efficientnet-b2')
+    parser.add_argument("--path_data", type=str, default='/workspace/melanoma_isic_dataset') 
     parser.add_argument("--tags", type=str, default='Exp 5. FedBN') 
     parser.add_argument("--nowandb", action="store_true")  
-    parser.add_argument("--path", type=str, default='/workspace/melanoma_isic_dataset') 
 
     parser.add_argument(
         "--r", type=int, default=10, help="Number of rounds for the federated training"
@@ -99,8 +101,6 @@ if __name__ == "__main__":
         default=3,
         help="Min available clients, min number of clients that need to connect to the server before training round can start",
     )
-    
-
     args = parser.parse_args()
 
     # Setting up GPU for processing or CPU if GPU isn't available
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     if not args.nowandb:
         wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL', tags=[args.tags] ,config={"model": args.model})
         wandb.config.update(args)
-        # wandb.watch(model, log='all')
+        # wandb.watch(model, log='all')  # Track weights and gradients
     
     # Create strategy
     strategy = fl.server.strategy.FedAvg(
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         min_fit_clients = fc,
         min_eval_clients = 2,  
         min_available_clients = ac,
-        eval_fn=get_eval_fn(model, args.path),
+        eval_fn=get_eval_fn(model, args.path_data),
         on_fit_config_fn=fit_config,
         on_evaluate_config_fn=evaluate_config,
         initial_parameters= fl.common.weights_to_parameters(utils.get_parameters(model, EXCLUDE_LIST)),  
