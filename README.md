@@ -1,4 +1,37 @@
-# Flower - A Friendly Federated Learning Framework
+# Federated Learning in Healthcare with Flower
+
+One solution for issues with sharing health data to develop better models is decentralised AI, where a model is trained locally, and only model parameters get shared between sites. Sahlgrenska University Hospital team is currently involved in a large project on decentralised AI where we work together with AI Sweden and Region Halland (neighbouring healthcare providing area) to test this in practice.
+
+In the first step of the project, we are working on publicly available data and simulating the decentralised structure internally. The main goal is to share learnings via presentation in AI Sweden and Information driven healthcare community. We have two use cases that we’re actively working on:
+
+* Synthetic data generation using GANs with FL/SL setup.
+
+* Image classification in FL/SL setup. 
+
+Our main intrest is connected with Melanoma Image classification using more fair and accurate models.
+
+## Skin Lesion Classification 
+
+* Local Training in a centralized way: [`train_local.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/train_local.py)
+
+* Training in a federated setup: 
+  1. Launch [`server_advanced.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/server_advanced.py):    
+ ```python server_advanced.py --path_data <> --r <Number of rounds for the federated training> --fc <Min fit clients, min number of clients to be sampled next round> --ac <Min available clients, min number of clients that need to connect to the server before training round can start>```
+  The model is evaluated both centralized and in a decentralized manner. If you don’t want to perform centralized evaluation set `fraction_eval=0.0`.
+
+  2. Launch one [`client_isic.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/client_isic.py) per terminal:
+```python client_isic.py –path_data <path> –num_partitions <>  –partition  <> –gpu  <gpu ID>```
+
+Note: Use `--nowandb` flag if you want to disable wandb logging.
+
+
+
+## Synthetic data generation of skin lesions
+
+
+
+
+# Flower Original README - A Friendly Federated Learning Framework
 
 [![GitHub license](https://img.shields.io/github/license/adap/flower)](https://github.com/adap/flower/blob/main/LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/adap/flower/blob/main/CONTRIBUTING.md)
