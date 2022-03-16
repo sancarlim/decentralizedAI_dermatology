@@ -52,7 +52,7 @@ In our use case, we will be following the below steps.
 
 For simple workloads we can start a Flower server and leave all the configuration possibilities at their default values. In a file named ```server.py```, import Flower and start the server:
 
-```
+```python
 import flwr as fl
 
 fl.server.start_server(config={"num_rounds": 3})
@@ -69,7 +69,7 @@ The strategy abstraction enables implementation of fully custom strategies. A st
 
 Flower comes with a number of popular federated learning strategies built-in. A built-in strategy can be instantiated as follows:
 
-```
+```python
 import flwr as fl
 
 strategy = fl.server.strategy.FedAvg()
@@ -79,7 +79,7 @@ This creates a strategy with all parameters left at their default values and pas
 
 The server can pass new configuration values to the client each round by providing a function to _on_fit_config_fn_. The provided function will be called by the strategy and must return a dictionary of configuration key values pairs that will be sent to the client. It must return a dictionary of arbitraty configuration values _client.fit_ and _client.evaluate_ functions during each round of federated learning.
 
-```
+```python
 import flwr as fl
 
 def get_on_fit_config_fn() -> Callable[[int], Dict[str, str]]:
@@ -115,7 +115,7 @@ All strategy implementation are derived from the abstract base class _flwr.serve
 
 The strategy abstraction defines a few abstract methods that need to be implemented:
 
-```
+```python
 class Strategy(ABC):
 
     @abstractmethod
@@ -148,7 +148,7 @@ class Strategy(ABC):
     def evaluate(self, weights: Weights) -> Optional[Tuple[float, float]]:
 ```
 Creating a new strategy means implmenting a new class derived from the abstract base class _Strategy_ which provides implementations for the previously shown abstract methods:
-```
+```python
 class SotaStrategy(Strategy):
 
     def configure_fit(self, rnd, weights, client_manager):
@@ -189,7 +189,7 @@ Flower provides a convenience class called ```NumPyClient``` which makes it easi
 
 which can be implemented in the following way:
 
-```
+```python
 class Client(fl.client.NumPyClient):
     """Flower client implementing melanoma classification using PyTorch."""
 
@@ -240,7 +240,7 @@ class Client(fl.client.NumPyClient):
 
 We can now create an instance of our class CifarClient and add one line to actually run this client:
 
-```
+```python
 fl.client.start_numpy_client("[::]:8080", client=Client())
 ```
 That’s it for the client. We only have to implement Client or NumPyClient and call fl.client.start_client() or fl.client.start_numpy_client(). The string "[::]:8080" tells the client which server to connect to. In our case we can run the server and the client on the same machine, therefore we use "[::]:8080". If we run a truly federated workload with the server and clients running on different machines, all that needs to change is the server_address we point the client at.
@@ -253,7 +253,7 @@ There are two main approaches to evaluate models in federated learning systems: 
 
 All built-in strategies support centalized evaluation by providing an evaluation function during initialization. An evaluation function is any function that can take the current global model parameters as input and return evaluation results:
 
-```
+```python
 def get_eval_fn(model: torch.nn.Module, toy: bool):
     """Return an evaluation function for server-side evaluation."""
 
@@ -303,7 +303,7 @@ Client-side evaluation happens in the ```Client.evaluate``` method showed previo
   * ```min_available_clients```: an int that defines the minimum number of clients which need to be connected to the server before a round of federated evaluation can start. If fewer than min_available_clients are connected to the server, the server will wait until more clients are connected before it continues to sample clients for evaluation.
   * ```on_evaluate_config_fn```: a function that returns a configuration dictionary which will be sent to the selected clients. The function will be called during each round and provides a convenient way to customize client-side evaluation from the server side, for example, to configure the number of validation steps performed.
 
-```
+```python
 def evaluate_config(rnd: int):
     """Return evaluation configuration dict for each round.
     Perform five local evaluation steps on each client (i.e., use five
@@ -328,6 +328,18 @@ fl.server.start_server("[::]:8080", strategy=strategy)
 
 
 ## Skin Lesion Classification 
+
+### Preparing datasets
+
+Datasets are stored as uncompressed ZIP archives containing uncompressed PNG files and a metadata file `dataset.json` for labels.
+
+Custom datasets can be created from a folder containing images; see [`python dataset_tool.py --help`](./docs/dataset-tool-help.txt) for more information. Alternatively, the folder can also be used directly as a dataset, without running it through `dataset_tool.py` first, but doing so may lead to suboptimal performance.
+
+**ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) and create ZIP archive:
+
+```.bash
+python dataset_tool.py --source=/tmp/isic-dataset --dest=~/datasets/isic256x256.zip --width=256 --height=256
+```
 
 ### Train the model in a federated setup
 
