@@ -1,14 +1,15 @@
 # Federated Learning in Healthcare with Flower
 
-One solution for issues with sharing health data to develop better models is decentralised AI, where a model is trained locally, and only model parameters get shared between sites. Sahlgrenska University Hospital team is currently involved in a large project on decentralised AI where we work together with AI Sweden and Region Halland (neighbouring healthcare providing area) to test this in practice.
+Harnessing the potential of AI in healthcare requires access to huge amounts of data to build robust models. One solution to overcome the problems of sharing healthcare data to develop better models is federated learning. In this scenario, different models are trained on each hospital's local data and share their knowledge (parameters) with a central server that performs the aggregation in order to achieve a more robust and fair model.
 
-In the first step of the project, we are working on publicly available data and simulating the decentralised structure internally. The main goal is to share learnings via presentation in AI Sweden and Information driven healthcare community. We have two use cases that we’re actively working on:
+This repository contains the code to reproduce the experiments performed in the framework of the Decentralized AI in Healthcare project at Sahlgrenska University Hospital and AI Sweden. In the first step of the project, we are working on publicly available data and simulating the decentralised setup internally. We have two different tasks on which we are actively working :
 
 * Synthetic data generation using GANs with FL/SL setup.
 
 * Image classification in FL/SL setup. 
 
-Our main intrest is connected with Melanoma Image classification using more fair and accurate models.
+Our main use case is connected with Melanoma Diagnosis using ISIC Dataset:
+    * **ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) 
 
 ## Flower framework
 Flower is a user-friendly framework designed for implementing the Federated Learning approach. 
@@ -36,15 +37,15 @@ A federated learning system needs two parts
 2. Client. The clients (devices or silos - hospitals in our specific use case) have a local model running on the local data.
 
 In our use case, we will be following the below steps.
-1. We will build a melanoma classifier based on EfficientNetB2 using ISIC 2020 Dataset. <!--- Add links)-->
-2. We will first train the model on the local data in each client. Lets start with 3 hospitals, so we have 3 locally running models in 3 seperate institutions.
-3. Once our model is trained and we have our model parameters, we try to connect with the server.
-4. The server then either accepts or rejects the invitation to connect based on some policy. Here we will simply use a First Come First Serve policy.
-5. If the connection goes through, the client sends the model parameters to the server.
-6. The server waits for all 3 model parameters and then aggregates them thus making use of all the data in all the models.
-7. This can happen for as many rounds as we want to train the data.
-8. Then the server sends the updates weight parameters back to the clients.
-9. The client will now use the weights for image classification.
+1. We will build a melanoma classifier based on EfficientNetB2 using ISIC 2020 Dataset. 
+3. We will first train the model on the local data in each client. Lets start with 3 hospitals, so we have 3 locally running models in 3 seperate institutions.
+4. Once our model is trained and we have our model parameters, we try to connect with the server.
+5. The server then either accepts or rejects the invitation to connect based on some policy. Here we will simply use a First Come First Serve policy.
+6. If the connection goes through, the client sends the model parameters to the server.
+7. The server waits for all 3 model parameters and then aggregates them thus making use of all the data in all the models.
+8. This can happen for as many rounds as we want to train the data.
+9. Then the server sends the updates weight parameters back to the clients.
+10. The client will now use the weights for image classification.
 
 ![image](https://user-images.githubusercontent.com/58729912/158644641-af5327fc-b79c-4b53-ac51-0958dc80c9e8.png)
 
@@ -328,18 +329,6 @@ fl.server.start_server("[::]:8080", strategy=strategy)
 
 
 ## Skin Lesion Classification 
-
-### Preparing datasets
-
-Datasets are stored as uncompressed ZIP archives containing uncompressed PNG files and a metadata file `dataset.json` for labels.
-
-Custom datasets can be created from a folder containing images; see [`python dataset_tool.py --help`](./docs/dataset-tool-help.txt) for more information. Alternatively, the folder can also be used directly as a dataset, without running it through `dataset_tool.py` first, but doing so may lead to suboptimal performance.
-
-**ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) and create ZIP archive:
-
-```.bash
-python dataset_tool.py --source=/tmp/isic-dataset --dest=~/datasets/isic256x256.zip --width=256 --height=256
-```
 
 ### Train the model in a federated setup
 
