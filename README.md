@@ -414,6 +414,12 @@ strategy = AggregateCustomMetricStrategy(
 fl.server.start_server(strategy=strategy)
 ```
 
+#### SSL-enabled Server and Client
+
+Please, follow the following guide to learn how a SSL-enabled secure Flower server can be started and how a Flower client can establish a secure connection to it.
+
+[`Guide: SSL-enabled Server and Client`](https://flower.dev/docs/ssl-enabled-connections.html)
+
 ## Skin Lesion Classification 
 
 ### Train the model in a federated setup
