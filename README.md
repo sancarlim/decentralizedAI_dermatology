@@ -33,8 +33,8 @@ To install its latest version from GitHub
 ### Federated learning pipeline
 
 A federated learning system needs two parts
-1. Server. The server hosts the aggregation logic and makes sure all the devices have the latest and updated model parameters.
-2. Client. The clients (devices or silos - hospitals in our specific use case) have a local model running on the local data.
+1. **Server**. The server hosts the aggregation logic and makes sure all the devices have the latest and updated model parameters.
+2. **Client**. The clients (devices or silos - hospitals in our specific use case) have a local model running on the local data.
 
 In our use case, we will be following the below steps.
 1. We will build a melanoma classifier based on EfficientNetB2 using ISIC 2020 Dataset. 
@@ -68,7 +68,7 @@ There are three ways to customize the way Flower orchestrates the learning proce
    
 The strategy abstraction enables implementation of fully custom strategies. A strategy is basically the federated learning algorithm that runs on the server. Strategies decide how to sample clients, how to configure clients for training, how to aggregate updates, and how to evaluate models. Flower provides a few built-in strategies which are based on the same API described below.
 
-#### Strategies
+#### Built-in strategies
 
 Flower comes with a number of popular federated learning strategies built-in. A built-in strategy can be instantiated as follows:
 
@@ -242,7 +242,7 @@ class Client(fl.client.NumPyClient):
                 
 ```
 
-We can now create an instance of our class CifarClient and add one line to actually run this client:
+We can now create an instance of our class Client and add one line to actually run this client:
 
 ```python
 fl.client.start_numpy_client("[::]:8080", client=Client())
