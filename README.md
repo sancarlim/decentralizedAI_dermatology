@@ -169,7 +169,8 @@ class SotaStrategy(Strategy):
     def evaluate(self, weights):
         # Your implementation here
 ```        
-        
+More on implementing strategies: [Implementing Strategies - flower.dev](https://flower.dev/docs/implementing-strategies.html) 
+
 ### Flower Client
 
 The Flower server interacts with clients through an interface called ```Client```. When the server selects a particular client for training, it sends training instructions over the network. The client receives those instructions and calls one of the ```Client``` methods to run your code (i.e., to train the melanoma classification network).
