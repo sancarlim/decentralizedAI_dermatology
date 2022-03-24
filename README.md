@@ -296,11 +296,11 @@ fl.server.start_server("[::]:8080", strategy=strategy)
 ```
 
 #### Custom Strategies 
-The _Strategy_ abstraction provides a method called _evaluate_ that can direcly be used to evaluate the current global model parameters. The current server implementation calls _evaluate_ after parameter aggregation and before federated evaluation (see next paragraph).
+The _Strategy_ abstraction provides a method called _evaluate_ that can direcly be used to evaluate the current global model parameters. The current server implementation calls _evaluate_ after parameter aggregation and before federated evaluation (see next section).
 
 #### Federated Evaluation
 
-Client-side evaluation happens in the ```Client.evaluate``` method showed previously and can be configured from the server side.  Built-in strategies support the following arguments:
+Client-side evaluation happens in the ```Client.evaluate``` method and can be configured from the server side.  Built-in strategies support the following arguments:
 
   * ```fraction_eval```: a float defining the fraction of clients that will be selected for evaluation. If fraction_eval is set to 0.1 and 100 clients are connected to the server, then 10 will be randomly selected for evaluation. If fraction_eval is set to 0.0, federated evaluation will be disabled.
   * ``` min_eval_clients```: an int: the minimum number of clients to be selected for evaluation. If fraction_eval is set to 0.1, min_eval_clients is set to 20, and 100 clients are connected to the server, then 20 clients will be selected for evaluation.
