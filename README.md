@@ -18,7 +18,7 @@ Flower is a user-friendly framework designed for implementing the Federated Lear
 
 Installing the Flower framework requires Python 3.6 or higher version.
 
-To install its stabte version found on PyPI:
+To install its stable version found on PyPI:
 
  ```pip install flwr ```
 
@@ -29,6 +29,22 @@ To install its latest (though unstable) releases:
 To install its latest version from GitHub
 
  ```pip install git+https://github.com/adap/flower.git ```
+
+
+### Requirements
+
+Use the provided Dockerfile to build and image with the required library dependencies, provided in requirements.txt.
+
+```docker build -t decentralized_ai_dermatology --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) -f Dockerfile .```
+
+Start the container
+
+```docker run -d --rm -it --volume $(pwd):/workspace --shm-size 8G --name decentralized_ai_dermatology decentralized_ai_dermatology```
+
+Execute container
+
+```docker exec -it decentralized_ai_dermatology bash```
+
 
 ### Federated learning pipeline
 
@@ -434,7 +450,7 @@ With both client and server ready, we can now run everything and see federated l
 Once the server is running we can start the clients in different terminals. Open a new terminal per client and start the client:
 
 [`client_isic.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/client_isic.py) per terminal:
-```python client_isic.py –path_data <path> –num_partitions <>  –partition  <> –gpu  <gpu ID>```
+```python client_isic.py –-path <path> –-num_partitions <>  –-partition  <> –-gpu  <gpu ID>```
 
 Note: Use `--nowandb` flag if you want to disable wandb logging.
 
@@ -443,7 +459,7 @@ Note: Use `--nowandb` flag if you want to disable wandb logging.
 To train the model in a centralized way in case you want to make a comparison, you can run: 
 
 [`train_local.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/train_local.py)  
-```python train_local.py –path_data <path> –num_partitions <>  –partition  <> –gpu  <gpu ID>```
+```python train_local.py –-path_data <path> –-num_partitions <>  –-partition  <> –-gpu  <gpu ID>```
 
 Note: Use `--nowandb` flag if you want to disable wandb logging.
 
@@ -465,7 +481,7 @@ For StylGAN2-ADA implementation we used:
   The model is evaluated in a decentralized manner. For some GANs parameters see the script.
 
   2. Launch one [`client_isic_gan.py`](https://github.com/aidotse/decentralizedAI_dermatology/blob/master/client_isic_gan.py) per terminal:
-```python client_isic_gan.py –data <path> –num_partitions <>  –partition  <> –gpu  <gpu ID>```
+```python client_isic_gan.py –-data <path> –-num_partitions <>  –-partition  <> –gpu  <gpu ID>```
 
 Note: Use `--wandb` flag if you want to enable wandb logging.
 
