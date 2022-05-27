@@ -138,7 +138,7 @@ if __name__ == "__main__":
     
     # Load data
     # Normal partition
-    trainset, valset, num_examples = utils.load_isic_data()
+    trainset, valset, num_examples = utils.load_isic_data(args.path)
     trainset, valset, num_examples = utils.load_partition(trainset, valset, num_examples, idx=args.partition, num_partitions=args.num_partitions)
     # Exp 1
     # trainset, testset, num_examples = utils.load_exp1_partition(trainset, testset, num_examples, idx=args.partition)
