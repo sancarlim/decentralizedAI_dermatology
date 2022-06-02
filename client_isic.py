@@ -111,18 +111,20 @@ class Client(fl.client.NumPyClient):
 
 if __name__ == "__main__":
     parser = ArgumentParser() 
-    parser.add_argument("--model", type=str, default='efficientnet-b2') 
+    parser.add_argument("--model", type=str, default="efficientnet-b2") 
     parser.add_argument("--log_interval", type=int, default=100)  
     parser.add_argument("--epochs", type=int, default=2)  
+    parser.add_argument("--batch_train", type=int, default=32) 
     parser.add_argument("--num_partitions", type=int, default=20) 
     parser.add_argument("--partition", type=int, default=0)   
     parser.add_argument("--gpu", type=int, default=0)   
-    parser.add_argument("--tags", type=str, default='Exp 5. FedBN') 
+    parser.add_argument("--tags", type=str, default="Exp 5. FedBN") 
     parser.add_argument("--nowandb", action="store_true") 
-    parser.add_argument("--path", type=str, default='/workspace/melanoma_isic_dataset') 
+    parser.add_argument("--path", type=str, default="/workspace/melanoma_isic_dataset")
+    parser.add_argument("--host", type=str, default="0.0.0.0")
+    parser.add_argument("--port", type=str, default="8080")
     args = parser.parse_args()
 
-    
     # Setting up GPU for processing or CPU if GPU isn't available
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
@@ -132,7 +134,7 @@ if __name__ == "__main__":
     model = utils.load_model(args.model, device)
 
     if not args.nowandb:
-        wandb.init(project="dai-healthcare" , entity='eyeforai', group='FL', tags=[args.tags], config={"model": args.model})
+        wandb.init(project="dai-healthcare" , entity="eyeforai", group="FL", tags=[args.tags], config={"model": args.model})
         wandb.config.update(args) 
         # wandb.watch(model, log="all")
     
@@ -150,12 +152,12 @@ if __name__ == "__main__":
     
     print(f"Train dataset: {len(trainset)}, Val dataset: {len(valset)}, Test dataset: {len(testset)}")
 
-    train_loader = DataLoader(trainset, batch_size=32, num_workers=4, worker_init_fn=utils.seed_worker, shuffle=True) 
+    train_loader = DataLoader(trainset, batch_size=args.batch_train, num_workers=4, worker_init_fn=utils.seed_worker, shuffle=True) 
     val_loader = DataLoader(valset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)   
     test_loader = DataLoader(testset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)   
 
     # Start client 
     client = Client(model, train_loader, val_loader, test_loader, num_examples)
-    fl.client.start_numpy_client("0.0.0.0:8080", client)
+    fl.client.start_numpy_client(args.host + ":" + args.port, client)
 
     
