@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:20.12-py3
+FROM nvcr.io/nvidia/pytorch:21.11-py3
 
 ARG USER_ID
 ARG GROUP_ID
