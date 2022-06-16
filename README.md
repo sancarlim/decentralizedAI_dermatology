@@ -13,7 +13,7 @@ This repository contains the code to reproduce the experiments performed in the 
 
 Our main use case is connected with Melanoma Diagnosis using ISIC Dataset:
 
-    * **ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) 
+* **ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) 
 
 ## Flower framework
 Flower is a user-friendly framework designed for implementing the Federated Learning approach. 
