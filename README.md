@@ -1,5 +1,8 @@
 # Federated Learning in Healthcare with Flower
 
+[![Watch the video](https://img.youtube.com/vi/kifLAY_5JA0/maxresdefault.jpg)](https://youtu.be/kifLAY_5JA0)
+Result from the project was presented at [Flower Summit, Cambridge 2022](https://flower.dev/conf/flower-summit-2022/).
+
 Harnessing the potential of AI in healthcare requires access to huge amounts of data to build robust models. One solution to overcome the problems of sharing healthcare data to develop better models is federated learning. In this scenario, different models are trained on each hospital's local data and share their knowledge (parameters) with a central server that performs the aggregation in order to achieve a more robust and fair model.
 
 This repository contains the code to reproduce the experiments performed in the framework of the Decentralized AI in Healthcare project at Sahlgrenska University Hospital and AI Sweden. In this example repository we are working on publicly available data (ISIC Archive) and simulating the decentralised setup internally. We have two different tasks on which we are actively working :
@@ -9,6 +12,7 @@ This repository contains the code to reproduce the experiments performed in the 
 * Image classification in FL/SL setup. 
 
 Our main use case is connected with Melanoma Diagnosis using ISIC Dataset:
+
     * **ISIC 2020**: Download the [ISIC 2020 dataset](https://www.kaggle.com/nroman/melanoma-external-malignant-256) 
 
 ## Flower framework
