@@ -31,7 +31,7 @@ def get_eval_fn(model, path):
     # Load data and model here to avoid the overhead of doing it in `evaluate` itself
 
     # Exp 1
-    trainset, testset, num_examples = utils.load_isic_data()
+    trainset, testset, num_examples = utils.load_isic_data(path)
     trainset, testset, num_examples = utils.load_partition(trainset, testset, num_examples, idx=3, num_partitions=10)  # Use validation set partition 3 for evaluation of the whole model
     
     # Exp 2

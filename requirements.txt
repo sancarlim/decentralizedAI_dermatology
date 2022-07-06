@@ -1,0 +1,5 @@
+imageio-ffmpeg==0.4.3 
+pyspng==0.1.0
+flwr==0.18.0
+efficientnet_pytorch==0.7.1
+wandb==0.12.17

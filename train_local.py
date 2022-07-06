@@ -48,13 +48,13 @@ if __name__ == "__main__":
 
     # Load data
     # trainset, testset, num_examples = utils.load_exp1_partition(trainset, testset, num_examples, idx=args.partition)
-    train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition) 
+    train_df, validation_df, num_examples = utils.load_isic_by_patient(args.partition, args.path_data) 
     
     trainset = utils.CustomDataset(df = train_df, train = True, transforms = training_transforms) 
     valset = utils.CustomDataset(df = validation_df, train = True, transforms = testing_transforms ) 
     train_loader = DataLoader(trainset, batch_size=32, num_workers=8, worker_init_fn=utils.seed_worker ,shuffle=True) 
     val_loader = DataLoader(valset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)  
-    testset = utils.load_isic_by_patient(-1) 
+    testset = utils.load_isic_by_patient(-1, args.path_data) 
     test_loader = DataLoader(testset, batch_size=16, num_workers=4, worker_init_fn=utils.seed_worker, shuffle = False)  
     print(f"Train dataset: {len(trainset)}, Val dataset: {len(valset)}, Test dataset: {len(testset)}") 
         

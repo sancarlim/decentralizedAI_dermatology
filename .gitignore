@@ -5,7 +5,6 @@ __pycache__/
 *jpg
 *pth 
 *npz
-*txt*
 *even*
 *tar*
 *jpeg
@@ -14,3 +13,4 @@ __pycache__/
 .ipynb_checkpoints/
 *batch*
 wandb/
+data/
